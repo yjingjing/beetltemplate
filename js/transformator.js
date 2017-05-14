@@ -53,6 +53,7 @@ Transformator.prototype={
 		this.checkAppendCR();
 		//解析str
 		this.parser();
+		console.log(this.sb);
 		return this.sb.toString();
 	},
 	findCR:function(){
@@ -118,9 +119,9 @@ Transformator.prototype={
 		var hasLetter=false;
 		var hasCheck=false;
 		while(this.index<=this.cs.length){
+			//匹配占位符开始标记
 			if(this.matchStr(this.placeholderStart)){
-				//匹配占位符开始标记
-				console.log('placeholderst');
+//				console.log('placeholderstart');
 				if(this.isEscape(temp,this.index)){
 					temp+=this.cs[this.index++];
 					continue;
@@ -137,7 +138,7 @@ Transformator.prototype={
 				return;
 			}else if(this.matchStr(this.startStatement)){
 				//匹配控制语句开始标记
-				console.log('startStatement');
+//				console.log('startStatement');
 				if(this.isEscape(temp,this.index)){
 					temp+=this.cs[this.index++];
 					continue;
@@ -154,7 +155,7 @@ Transformator.prototype={
 				return;
 			}else if(this.isSupportHtmlTag && this.matchStr(this.htmlTagEnd)){
 				//匹配html结束标签
-				console.log('htmlTagEnd');
+//				console.log('htmlTagEnd');
 				if(temp.length!=0){
 					if(this.lineCount>=1){
 						this.createMutipleLineTextNode(temp);
@@ -168,7 +169,7 @@ Transformator.prototype={
 				return;
 			}else if(this.isSupportHtmlTag && this.matchStr(this.htmlTagStart)){
 				//匹配html开始标签
-				console.log('htmlTagStart');
+//				console.log('htmlTagStart');
 				if(temp.length!=0){
 					if(this.lineCount>=1){
 						this.createMutipleTextNode(temp);
@@ -182,8 +183,7 @@ Transformator.prototype={
 				this.index=this.index+this.htmlTagStart.length;
 				return;
 			}else if(this.status!=4){
-				console.log('!4');
-				var ch=this.cs[this.index];
+				var ch=this.cs[this.index++];
 				if(ch=='\r' || ch=='\n'){
 					this.totalLineCount++;
 					this.skipCR(ch);
@@ -275,12 +275,12 @@ Transformator.prototype={
 	},
 	//3 解析在占位符号里 
 	readPlaceholder:function(){
-		console.log('readPlaceholder');
+//		console.log('readPlaceholder');
 		this.index=this.index+this.placeholderStart.length;
 		this.lineStatus.addHolderCount();
 		this.sb+="<<";
 		while(this.index<=this.cs.length){
-			if(this.matchArr(this.placeholderEnd)){
+			if(this.matchStr(this.placeholderEnd)){
 				//如果前面是一个转义字符
 				if(this.isEscape(this.sb,this.index)){
 					this.sb+=this.cs[this.index++];
@@ -319,11 +319,31 @@ Transformator.prototype={
 			if(map.size()!=0){
 				script+="{";
 			}
+			for(var i in map.entrySet){
+				var key=i;
+				var value=map.get(key);
+//				if(html.crKey.contains(key)){
+//					script+=this.lineSeparator;
+//				}
+				script+=key+":";
+				var attrValue=this.parseAttr(quat.get(key),value);
+				script+=attrValue;
+				script+=",";
+			}
+			script=script.substring(0,script.length-1);
 			if(map.size()!=0){
 				script+="}";
 			}
 			if(html.hasVarBinding){
-				console.log('aa');
+				if(map.size()==0){
+					script+=",{}";
+				}
+				if(html.varBindingStr.trim().length==0){
+					var defaultVarName=null;
+					var index=tagName.lastIndexOf(":");
+				}else{
+					script+=",'"+html.varBindingStr+"'";
+				}
 			}
 			script+="){";
 			if(html.emptyTag()){
@@ -343,7 +363,6 @@ Transformator.prototype={
 	},
 	//6 html tag end
 	readHTMLTagEnd:function(){
-		console.log('readHTMLTagEnd');
 		var tagName=null;
 		try{
 			var html=new HTMLTagParser(this.cs,this.index,this.htmlTagBindingAttribute,false);
@@ -388,7 +407,7 @@ Transformator.prototype={
 			return;
 		}
 		var name=this.getNewVarName();
-		this.textMap.push(parseInt(name),str.toString());
+		this.textMap.put(parseInt(name),str.toString());
 		var textVarName="<$"+name+">>";
 		if(this.isSpace(str)){
 			this.lineStatus.addSpaceText(this.sb.length,this.sb.length+textVarName.length);
@@ -411,14 +430,16 @@ Transformator.prototype={
 		return this.vname+this.vnamesuffix++;
 	},
 	isEscape:function(temp,index){
-		if(index!=0 && cs[index-1]==this.ESCAPE){
-			if(index>=2 && cs[index-2]==this.ESCAPE){
+		if(index!=0 && this.cs[index-1]==this.ESCAPE){
+			if(index>=2 && this.cs[index-2]==this.ESCAPE){
 				//两个转义符号，删除一个
 				if(temp.length!=0){
-					
+					temp=temp.subString(0,temp.length-1);
 				}
 				return false;
 			}else{
+				if(temp.length!=0)
+					temp=temp.subString(0,temp.length-1);
 				return true;
 			}
 		}else{
@@ -446,7 +467,7 @@ Transformator.prototype={
 		}
 		this.lineStatus.reset();
 	},
-	createMutipleTextNode:function(str){
+	createMutipleLineTextNode:function(str){
 		var index=str.lastIndexOf(this.lineSeparator);
 		var firstPart=str.substring(0,index);
 		var secondPart=str.substring(index+this.lineSeparator.length);
@@ -506,20 +527,19 @@ Transformator.prototype={
 }
 //函数执行体
 var c='\\';
-var p=new Transformator("${","}","@",null);
+var p=new Transformator("${","}","<!--:","-->");
 p.enableHtmlTagSupport("<","</","var");
 try{
 	var str="@var a=1;\n@var b=1;";
-	var str2="<html></html>";
-//	var str1='<html>\n\t<head>\n\t\t<meta charset="UTF-8">\n\t\t<title>列表页</title>\n\t</head>\n\t<body>\n\t\t<div class="container-fluid">\n\t\t\t<table class="table table-bordered text-center">\n\t\t\t\t<tr class="thead">\n\t\t\t\t\t<!--:for(var item in table){-->\n\t\t\t\t\t<td>${item.name}</td>\n\t\t\t\t\t<!--:}-->\n\t\t\t\t</tr>\n\t\t\t</table>\n\t\t</div>\n\t</body>\n</html>';
+	var str2="<html>\n\t<head>\n\t</head></html>";
+//	var str3='<meta charset="UTF-8"></meta>';
+//	<#bbsListTag a='1' \nc='${ kk }' var='page,dd' >hello ${a}</#bbsListTag>
+//	var str4="<bbsListTag a='1' c='2' var='page,dd' >hello${a}</bbsListTag>";
+	var str1='<html>\n\t<head>\n\t\t<meta charset="UTF-8"/>\n\t\t<title>列表页</title>\n\t</head>\n\t<body>\n\t\t<div class="container-fluid">\n\t\t\t<table class="table table-bordered text-center">\n\t\t\t\t<tr class="thead">\n\t\t\t\t\t<!--:for(var item in table){-->\n\t\t\t\t\t<td>${item.name}</td>\n\t\t\t\t\t<!--:}-->\n\t\t\t\t</tr>\n\t\t\t</table>\n\t\t</div>\n\t</body>\n</html>';
+	var str5='<tr class="thead">\n\t<!--:for(var item in table){-->\n\t<td>${item.name}</td>\n\t<!--:}-->\n</tr>';
 
-//	p.cs=str1;
-//	console.log(p.matchStr(p.htmlTagEnd));
-//	console.log(p.matchStr(p.startStatement));
-//	p.transform(str1);
-	console.log(p.transform(str));
-	p.transform(str2)
-//	console.log(p.transform(str1));
+	p.transform(str1);
+	
 }catch(e){
 	
 }

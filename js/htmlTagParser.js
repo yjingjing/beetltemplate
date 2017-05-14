@@ -55,7 +55,12 @@ HTMLTagParser.prototype={
 		this.endTag();
 	},
 	parserEnd:function(){
-		
+		this.findTagName();
+		if(this.matchStr('>')){
+			this.move(1);
+		}else{
+			console.log(this.tagName+'结束标签格式错误');
+		}
 	},
 	//找到标签名
 	findTagName:function(){
